@@ -23,7 +23,7 @@ public class VehicleRegistryFeignConfig {
                         response.status(),
                         "Registry server error " + response.status(),
                         response.request().httpMethod(),
-                        (Long) null,
+                        null,
                         response.request());
             }
             return defaultDecoder.decode(methodKey, response);
