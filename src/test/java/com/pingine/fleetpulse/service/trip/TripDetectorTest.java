@@ -15,7 +15,7 @@ class TripDetectorTest {
     private final TripDetector detector = new TripDetector();
 
     @Test
-    @Disabled("Enable and make this pass.")
+    //@Disabled("Enable and make this pass.")
     void detectsSingleTripFromIgnitionOnToOff() {
         LocalDateTime t0 = LocalDateTime.parse("2026-04-27T08:00:00");
         List<TelemetryPoint> points = List.of(
@@ -37,7 +37,7 @@ class TripDetectorTest {
     }
 
     @Test
-    @Disabled("Enable and make this pass.")
+    //@Disabled("Enable and make this pass.")
     void handlesDuplicateTimestamps() {
         LocalDateTime t0 = LocalDateTime.parse("2026-04-27T08:00:00");
         List<TelemetryPoint> points = List.of(
