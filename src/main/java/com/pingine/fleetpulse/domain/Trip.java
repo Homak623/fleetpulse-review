@@ -1,6 +1,7 @@
 package com.pingine.fleetpulse.domain;
 
 import lombok.Builder;
+import lombok.NoArgsConstructor;
 import lombok.Value;
 
 import java.time.Instant;

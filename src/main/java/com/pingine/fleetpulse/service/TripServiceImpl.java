@@ -8,10 +8,15 @@ import com.pingine.fleetpulse.persistence.mongo.TelemetryRepository;
 import com.pingine.fleetpulse.service.trip.TripDetector;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+
+import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -40,9 +45,34 @@ public class TripServiceImpl implements TripService {
     }
 
     private List<TelemetryPoint> fetchTelemetryPoints(String vehicleId) {
-        List<TelemetryPoint> points = telemetryRepository.findRecentPoints(vehicleId, pointsLimit);
+        DescriptiveStatistics stats = new DescriptiveStatistics();
+        List<TelemetryPoint> points = null;
 
-        if (points.isEmpty()) {
+        log.info("Starting benchmark for vehicle: {} (100 iterations)", vehicleId);
+
+        for (int i = 0; i < 100; i++) {
+            long start = System.nanoTime();
+
+            points = telemetryRepository.findRecentPoints(vehicleId, pointsLimit);
+
+            long end = System.nanoTime();
+
+            stats.addValue((end - start) / 1_000_000.0);
+        }
+
+        double median = stats.getPercentile(50);
+        double p95 = stats.getPercentile(95);
+        double mean = stats.getMean();
+        double max = stats.getMax();
+
+        log.info("--- Benchmark Results for {} ---", vehicleId);
+        log.info("Average (Mean):  {} ms", String.format("%.2f", mean));
+        log.info("Median (p50):    {} ms", String.format("%.2f", median));
+        log.info("95th Percentile: {} ms", String.format("%.2f", p95));
+        log.info("Max latency:     {} ms", String.format("%.2f", max));
+        log.info("---------------------------------");
+
+        if (points == null || points.isEmpty()) {
             log.warn("No telemetry data found for vehicle: {}", vehicleId);
             throw new TripNotFoundException("No telemetry data for vehicle: " + vehicleId);
         }
@@ -52,7 +82,7 @@ public class TripServiceImpl implements TripService {
 
     private Trip findLastCompletedTrip(List<TelemetryPoint> points, String vehicleId) {
         List<Trip> trips = tripDetector.detect(points);
-
+        trips.add(null);
         if (trips.isEmpty()) {
             log.warn("No completed trips detected for vehicle: {}", vehicleId);
             throw new TripNotFoundException("No completed trips found for vehicle: " + vehicleId);

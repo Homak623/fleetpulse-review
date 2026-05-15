@@ -22,11 +22,9 @@ import java.util.stream.Collectors;
 @Component
 public class TripDetector {
 
-    private static final double EARTH_RADIUS_KM = 6371.0;
-
     public List<Trip> detect(List<TelemetryPoint> points) {
         if (points == null || points.isEmpty()) {
-            return Collections.emptyList();
+            return new ArrayList<>();
         }
 
         List<TelemetryPoint> sorted = points.stream()
@@ -94,23 +92,19 @@ public class TripDetector {
     }
 
     private static double calculateTotalDistance(List<TelemetryPoint> points) {
-        double total = 0.0;
+        double totalDistance = 0.0;
+
         for (int i = 0; i < points.size() - 1; i++) {
-            total += haversineKm(points.get(i), points.get(i + 1));
+            TelemetryPoint p1 = points.get(i);
+            TelemetryPoint p2 = points.get(i + 1);
+
+            totalDistance += GeoDistance.haversineKm(
+                    p1.getLat(), p1.getLon(),
+                    p2.getLat(), p2.getLon()
+            );
         }
-        return total;
-    }
 
-    private static double haversineKm(TelemetryPoint p1, TelemetryPoint p2) {
-        double dLat = Math.toRadians(p2.getLat() - p1.getLat());
-        double dLon = Math.toRadians(p2.getLon() - p1.getLon());
-
-        double a = Math.sin(dLat / 2) * Math.sin(dLat / 2)
-                + Math.cos(Math.toRadians(p1.getLat()))
-                * Math.cos(Math.toRadians(p2.getLat()))
-                * Math.sin(dLon / 2) * Math.sin(dLon / 2);
-
-        return EARTH_RADIUS_KM * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return totalDistance;
     }
 
     private static double calculateAvgSpeed(double distanceKm,

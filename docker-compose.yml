@@ -1,7 +1,4 @@
-version: "3.8"
-
 services:
-
   postgres:
     image: postgres:14-alpine
     ports:
@@ -18,17 +15,124 @@ services:
       timeout: 5s
       retries: 5
 
-  mongo:
+  fleet-pulse:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/pingine
+      SPRING_DATASOURCE_USERNAME: pingine
+      SPRING_DATASOURCE_PASSWORD: password
+      SPRING_DATA_MONGODB_URI: mongodb://mongos:27017/pingine
+      SPRING_REDIS_HOST: redis
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_USERNAME: pingine
+      SPRING_RABBITMQ_PASSWORD: password
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mongo-setup:
+        condition: service_completed_successfully
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - mongo-cluster
+      - default
+
+  mongos:
     image: mongo:6
+    command: mongos --configdb configsvr/mongo-config-1:27019 --bind_ip_all --port 27017
     ports:
       - "27017:27017"
-    volumes:
-      - pingine-mongo-data:/data/db
+    depends_on:
+      mongo-config-1:
+        condition: service_healthy
+      mongo-shard-1a:
+        condition: service_healthy
+      mongo-shard-2a:
+        condition: service_healthy
     healthcheck:
-      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      test: ["CMD", "mongosh", "--port", "27017", "--eval", "db.adminCommand('ping')"]
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - mongo-cluster
+
+  mongo-config-1:
+    image: mongo:6
+    command: mongod --configsvr --replSet configsvr --port 27019 --bind_ip_all
+    volumes:
+      - mongo-config-1-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--port", "27019", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - mongo-cluster
+
+  mongo-shard-1a:
+    image: mongo:6
+    command: mongod --shardsvr --replSet shard1 --port 27018 --bind_ip_all
+    volumes:
+      - mongo-shard-1a-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--port", "27018", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - mongo-cluster
+
+  mongo-shard-1b:
+    image: mongo:6
+    command: mongod --shardsvr --replSet shard1 --port 27018 --bind_ip_all
+    volumes:
+      - mongo-shard-1b-data:/data/db
+    depends_on:
+      mongo-shard-1a:
+        condition: service_healthy
+    networks:
+      - mongo-cluster
+
+  mongo-shard-2a:
+    image: mongo:6
+    command: mongod --shardsvr --replSet shard2 --port 27018 --bind_ip_all
+    volumes:
+      - mongo-shard-2a-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--port", "27018", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - mongo-cluster
+
+  mongo-shard-2b:
+    image: mongo:6
+    command: mongod --shardsvr --replSet shard2 --port 27018 --bind_ip_all
+    volumes:
+      - mongo-shard-2b-data:/data/db
+    depends_on:
+      mongo-shard-2a:
+        condition: service_healthy
+    networks:
+      - mongo-cluster
+
+  mongo-setup:
+    image: mongo:6
+    depends_on:
+      - mongo-config-1
+      - mongo-shard-1a
+      - mongo-shard-2a
+    volumes:
+      - ./scripts/mongo-init:/scripts
+    entrypoint: ["/bin/bash", "/scripts/init-sharded-cluster.sh"]
+    networks:
+      - mongo-cluster
 
   rabbitmq:
     image: rabbitmq:3-management-alpine
@@ -56,4 +160,12 @@ services:
 
 volumes:
   pingine-pg-data:
-  pingine-mongo-data:
+  mongo-config-1-data:
+  mongo-shard-1a-data:
+  mongo-shard-1b-data:
+  mongo-shard-2a-data:
+  mongo-shard-2b-data:
+
+networks:
+  mongo-cluster:
+    driver: bridge

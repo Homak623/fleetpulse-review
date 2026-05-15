@@ -41,7 +41,7 @@ fleet-pulse:
   seed:
     enabled: true
   trip:
-    points-limit: 10000
+    points-limit: 1000
 
 springdoc:
   swagger-ui:
